@@ -17,6 +17,8 @@ import pytest
 # Must be set before ai.py is imported so it picks the fake provider.
 os.environ["TESTING"] = "1"
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key")
+# The by-hand check of criterion 32 sets a delay; automated runs must not wait.
+os.environ.pop("FAKE_DELAY_SECONDS", None)
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -53,9 +55,12 @@ SAMPLE_PDF = FIXTURES / "sample_manual.pdf"
 
 @pytest.fixture
 def flask_app(tmp_path):
-    import ai
-    import app as app_module
-    import seed as seed_module
+    try:
+        import ai
+        import app as app_module
+        import seed as seed_module
+    except ModuleNotFoundError as missing:
+        pytest.fail(f"NOT BUILT YET: {missing.name}.py does not exist", pytrace=False)
 
     db_path = str(tmp_path / "test.db")
     flask_app = app_module.app

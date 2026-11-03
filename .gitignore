@@ -1,5 +1,4 @@
 .env
-claude.md
 settings.local.json
 __pycache__/
 .pytest_cache/
