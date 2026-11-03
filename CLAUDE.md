@@ -20,7 +20,11 @@ These come from our design work in Professor Peck's course (Product Strategy and
 
 ## Run it
 
-- Setup: `python -m venv .venv`, activate it, then `pip install -r requirements.txt`. Create `.env` with `GEMINI_API_KEY` and `FLASK_SECRET_KEY` (each teammate uses their own key).
+- Setup: `python -m venv .venv`, activate it, then `pip install -r requirements.txt`.
+  - Activate on Windows PowerShell: `.venv\Scripts\Activate.ps1` (if scripts are blocked, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once).
+  - Activate on Windows Git Bash: `source .venv/Scripts/activate`.
+  - Activate on macOS/Linux: `source .venv/bin/activate`.
+  - Deactivate with `deactivate`. Create `.env` with `GEMINI_API_KEY` and `FLASK_SECRET_KEY` (each teammate uses their own key).
 - Seed: `python seed.py` creates the admin `admin@mycarai.test` / `admin12345` and the Camry and RAV4.
 - App: `flask --app app run`. Debug only when `FLASK_DEBUG=1` is in `.env`.
 - Tests: `python -m pytest` from the repo root. `tests/conftest.py` sets `TESTING=1`, so tests use the fake AI provider and never call Gemini.
