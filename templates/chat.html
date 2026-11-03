@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ conversation.title if conversation else 'Ask' }} · MyCarAI{% endblock %}
+{% block main_class %}page chat{% endblock %}
+{% block content %}
+<h1>Ask about your {{ vehicle|vehicle_name }}</h1>
+
+{% if messages %}
+  <ol class="thread">
+    {% for m in messages %}
+      <li class="message {{ m.sender }}">
+        <span class="who">{{ 'You' if m.sender == 'driver' else 'MyCarAI' }}</span>
+        <p class="content">{{ m.content }}</p>
+        {% if m.sender == 'assistant' and m.source_page %}
+          <p class="source">Source: {{ vehicle|vehicle_name }} Owner's Manual, PDF page {{ m.source_page }}</p>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+{% endif %}
+
+<form class="ask" method="post"
+      action="{{ url_for('conversation', conversation_id=conversation.id) if conversation else url_for('chat') }}">
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <label for="question" class="visually-hidden">Your question</label>
+  <textarea id="question" name="question" rows="3" required
+            placeholder="{{ 'Ask a follow-up question' if conversation else 'Ask anything about your car, in your own words' }}">{{ question }}</textarea>
+  <div class="ask-row">
+    <span class="counter" id="question-counter" aria-live="polite"></span>
+    <button type="submit" id="send">Send</button>
+  </div>
+</form>
+
+{% if conversation %}
+  <form class="delete" method="post" action="{{ url_for('delete_conversation', conversation_id=conversation.id) }}" data-confirm="Delete this conversation?">
+    <button type="submit" class="secondary">Delete</button>
+  </form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='chat.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}My conversations · MyCarAI{% endblock %}
+{% block content %}
+<h1>My conversations</h1>
+{% if conversations %}
+  <ul class="conversation-list">
+    {% for c in conversations %}
+      <li>
+        <a href="{{ url_for('conversation', conversation_id=c.id) }}">
+          <span class="title">{{ c.title }}</span>
+          <span class="meta">{{ c|vehicle_name }} · {{ c.created_at[:10] }}</span>
+        </a>
+        <form method="post" action="{{ url_for('delete_conversation', conversation_id=c.id) }}" data-confirm="Delete this conversation?">
+          <button type="submit" class="secondary">Delete</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>You haven't asked anything yet. <a href="{{ url_for('chat') }}">Ask your first question</a>.</p>
+{% endif %}
+{% endblock %}

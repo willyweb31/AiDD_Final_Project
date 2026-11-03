@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}My vehicle · MyCarAI{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Which car do you drive?</h1>
+  <p class="muted">Answers will come from this car's owner's manual.</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  {% if vehicles %}
+    <form method="post" action="{{ url_for('vehicle') }}">
+      <label for="vehicle_id">Your vehicle</label>
+      <select id="vehicle_id" name="vehicle_id" required>
+        <option value="">Choose your vehicle</option>
+        {% for v in vehicles %}
+          <option value="{{ v.id }}" {% if v.id == selected %}selected{% endif %}>{{ v|vehicle_name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Save</button>
+    </form>
+  {% else %}
+    <p>No vehicles are ready yet. Please check back soon.</p>
+  {% endif %}
+</section>
+{% endblock %}
