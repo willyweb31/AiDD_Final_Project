@@ -1,16 +1,22 @@
 :root {
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --text: #1c2430;
-  --muted: #5d6878;
-  --border: #d9dee5;
-  --accent: #1f5fbf;
-  --accent-text: #ffffff;
-  --driver-bubble: #e7effb;
-  --error: #b42318;
-  --error-bg: #fdecea;
-  --notice-bg: #e8f5ec;
-  --notice-text: #1d5c34;
+  color-scheme: dark;
+  /* Sunset palette: blue #355c7d, purple #725a7a, rose #c56c86, coral #ff7582. */
+  --bg: #29374d;
+  --surface: #2c384e;
+  --input-bg: #29374d;
+  --text: #fcfaf7;
+  --muted: #e0d0de;
+  --border: #725a7a;
+  --control-border: #b299b7;
+  --accent: #ff7582;
+  --accent-hover: #ff929c;
+  --accent-text: #172030;
+  --driver-bubble: #355c7d;
+  --error: #ff929c;
+  --error-bg: #4b3043;
+  --notice-bg: #725a7a;
+  --notice-text: #fcfaf7;
+  --selection-bg: #c56c86;
   --radius: 10px;
 }
 
@@ -24,6 +30,10 @@ body {
 }
 
 a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+
+::selection { background: var(--selection-bg); color: var(--accent-text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .site-header {
   display: flex;
@@ -58,12 +68,13 @@ label { display: block; font-weight: 500; margin: 12px 0 4px; }
 input, select, textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   font: inherit;
-  background: var(--surface);
+  background: var(--input-bg);
   color: var(--text);
 }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 textarea { resize: vertical; }
 
 button {
@@ -77,9 +88,12 @@ button {
   font-weight: 600;
   cursor: pointer;
 }
+button:hover:not(:disabled) { background: var(--accent-hover); }
 button:disabled { opacity: 0.6; cursor: wait; }
-button.secondary { background: transparent; color: var(--error); border: 1px solid var(--border); }
+button.secondary { background: transparent; color: var(--error); border: 1px solid var(--control-border); }
+button.secondary:hover:not(:disabled) { background: var(--error-bg); }
 .link-button { margin: 0; padding: 0; background: none; color: var(--accent); font-weight: 500; text-decoration: underline; }
+.link-button:hover:not(:disabled) { background: none; color: var(--accent-hover); }
 
 .muted { color: var(--muted); }
 .error { background: var(--error-bg); color: var(--error); padding: 10px 12px; border-radius: 8px; }
