@@ -5,3 +5,4 @@ __pycache__/
 .venv/
 *.db
 knowledge/manuals/2026_Toyota_Camry_XSE.pdf
+docs/

@@ -12,7 +12,7 @@ These come from our design work in Professor Peck's course (Product Strategy and
 
 - **Drivers are not technical.** They are unsure about their car's features and ask in everyday words, not the manual's feature names. Write every page and message in plain language with no AI or RAG terms. Never show "chunk", "embedding", or "similarity".
 - **A wrong answer is worse than no answer.** The dealer we interviewed said one confidently wrong answer would stop him adopting the product. When retrieval is weak, say "I'm not sure" and stop. Never let the model fill gaps from its own knowledge, and never show a Source line on an answer that did not come from a retrieved chunk.
-- **The source is the trust signal.** Every manual-based answer shows its Source line with the PDF page, directly under the answer, so a driver can check it in their glove-box manual. This is a crutial step in our process to ensure the user is able to trust our output and has the ability to verify the sources.
+- **The source is the trust signal.** Every manual-based answer shows its Source line with the PDF page, directly under the answer, so a driver can check it in their glove-box manual. This is a crucial step in our process to ensure the user is able to trust our output and has the ability to verify the sources.
 - **Drivers went straight to the chat.** In user testing, drivers skipped the other features and used the AI assistant first. `/chat` is the landing page after sign-in once a vehicle is chosen. Keep it one question box and one Send button, with nothing in front of it.
 - **Carried over from MyCarAR:** plain-language answers and vehicle-specific content. **Dropped:** AR scanning, dashboard hotspots, and tutorial videos (see Out of scope in the spec).
 - **Phone sign-in was the plan; email and password is what we build.** Do not add SMS, OTP, or password reset.
@@ -28,7 +28,6 @@ These come from our design work in Professor Peck's course (Product Strategy and
 - Seed: `python seed.py` creates the admin `admin@mycarai.test` / `admin12345` and the Camry and RAV4.
 - App: `flask --app app run`. Debug only when `FLASK_DEBUG=1` is in `.env`.
 - Tests: `python -m pytest` from the repo root. `tests/conftest.py` sets `TESTING=1`, so tests use the fake AI provider and never call Gemini.
-- Hand check for criteria 32/33: `TESTING=1 FAKE_DELAY_SECONDS=3`, then run the app.
 
 ## Where things go
 
