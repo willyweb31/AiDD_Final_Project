@@ -117,7 +117,15 @@ def _gemini_embeddings(texts, task_type):
             vectors.extend(list(e.values) for e in result.embeddings)
     except Exception as exc:
         raise ProviderError(f"embedding failed: {exc}") from exc
+    _check_vectors(texts, vectors)
     return vectors
+
+
+def _check_vectors(texts, vectors):
+    """One vector of the right size per text, or the whole call counts as failed.
+    Without this, a short reply would quietly drop pages from a saved manual."""
+    if len(vectors) != len(texts) or any(len(v) != EMBEDDING_DIMENSIONS for v in vectors):
+        raise ProviderError("embedding reply did not match the text sent")
 
 
 def _gemini_answer(question, texts):
@@ -163,6 +171,7 @@ def embed_manual(pages):
     pages. Raises ProviderError if any batch fails, so nothing should be saved."""
     numbered = [(n, text) for n, text in enumerate(pages, start=1) if text]
     vectors = embed_documents([text for _, text in numbered])
+    _check_vectors(numbered, vectors)
     return [(n, text, vec) for (n, text), vec in zip(numbered, vectors)]
 
 

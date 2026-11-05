@@ -9,9 +9,10 @@
   var send = document.getElementById("send");
   var counter = document.getElementById("question-counter");
 
-  // Show a live "N / 500" count that turns red above 500.
+  // Show a live "N / 500" count that turns red above 500. It counts the way the
+  // server does: spaces around the question are ignored, and an emoji is one character.
   function updateCounter() {
-    var length = box.value.length;
+    var length = Array.from(box.value.trim()).length;
     counter.textContent = length + " / " + MAX_LENGTH;
     counter.classList.toggle("over", length > MAX_LENGTH);
   }

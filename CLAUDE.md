@@ -44,6 +44,7 @@ These come from our design work in Professor Peck's course (Product Strategy and
 - `/admin/*` returns 403 for non-admins. `/vehicle`, `/chat`, and `/conversations` return 403 for admins.
 - Answer from the conversation's `vehicle_id`, never the driver's current vehicle.
 - Every page must work with JavaScript off, using normal form posts. `chat.js` only adds conveniences and never holds a rule the server lacks.
+- Subagents in `.claude/agents/` are read-only (`tools: Read, Grep, Glob`). They report findings and suggested diffs; only the main agent edits files, and only after the team approves the change.
 - Only `flask`, `python-dotenv`, `pypdf`, `google-genai`, and `pytest` may be installed. No ORM, Flask-Login, LangChain, vector DB, or JS framework, and do not install `google-generativeai`.
 
 ## Vocabulary

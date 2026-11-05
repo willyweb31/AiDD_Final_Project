@@ -10,12 +10,19 @@ import ai
 import models
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+MAX_EMAIL_LENGTH = 254
 MIN_PASSWORD_LENGTH = 8
 MAX_QUESTION_LENGTH = 500
+MAX_VEHICLE_FIELD_LENGTH = 50
 MAX_PDF_BYTES = 50 * 1024 * 1024
+# SQLite stores integers in 8 bytes; a bigger id cannot match any row.
+MAX_DB_ID = 2**63 - 1
 
 PDF_TOO_LARGE = "PDFs must be 50 MB or smaller."
 CHOOSE_FROM_LIST = "Choose a vehicle from the list."
+ADD_VEHICLE_FIELDS = "Enter make, model, a 4-digit year, and trim."
+NOT_A_PDF = "Upload a PDF file."
+NO_READABLE_TEXT = "This PDF has no text we can read. Upload a PDF with selectable text."
 
 
 def clean_email(raw):
@@ -27,7 +34,7 @@ def validate_signup(conn, email, password):
     password = password or ""
     if not email:
         return None, "Email is required."
-    if not EMAIL_PATTERN.match(email):
+    if len(email) > MAX_EMAIL_LENGTH or not EMAIL_PATTERN.match(email):
         return None, "Enter a valid email address."
     if len(password) < MIN_PASSWORD_LENGTH:
         return None, "Password must be at least 8 characters."
@@ -37,10 +44,18 @@ def validate_signup(conn, email, password):
 
 
 def _vehicle_id(raw):
-    try:
-        return int((raw or "").strip())
-    except ValueError:
+    """Plain ASCII digits only, so "1_0", "-1", and non-Latin digits are refused,
+    and short enough that SQLite can compare it."""
+    raw = (raw or "").strip()
+    if not re.fullmatch(r"[0-9]{1,18}", raw):
         return None
+    return int(raw)
+
+
+def valid_conversation_id(conversation_id):
+    """A conversation id from the URL that SQLite can look up. Anything else is
+    answered with the same 404 as a conversation that does not exist."""
+    return 0 < conversation_id <= MAX_DB_ID
 
 
 def validate_vehicle_choice(conn, raw):
@@ -52,9 +67,13 @@ def validate_vehicle_choice(conn, raw):
 
 
 def validate_new_vehicle(conn, make, model, year, trim):
-    make, model, year, trim = ((v or "").strip() for v in (make, model, year, trim))
-    if not (make and model and trim) or not re.fullmatch(r"\d{4}", year):
-        return None, "Enter make, model, a 4-digit year, and trim."
+    # Collapse runs of spaces so "Land  Cruiser" and "Land Cruiser" are one vehicle.
+    make, model, trim = (" ".join((v or "").split()) for v in (make, model, trim))
+    year = (year or "").strip()
+    if not (make and model and trim) or not re.fullmatch(r"[1-9][0-9]{3}", year):
+        return None, ADD_VEHICLE_FIELDS
+    if max(len(make), len(model), len(trim)) > MAX_VEHICLE_FIELD_LENGTH:
+        return None, ADD_VEHICLE_FIELDS
     if models.find_vehicle(conn, make, model, int(year), trim) is not None:
         return None, "This vehicle already exists."
     return {"make": make, "model": model, "year": int(year), "trim": trim}, None
@@ -75,23 +94,26 @@ def validate_pdf(file):
     if file is None or not file.filename:
         return None, "Choose a PDF to upload."
     data = file.read()
-    if not data:
-        return None, "Choose a PDF to upload."
     if len(data) > MAX_PDF_BYTES:
         return None, PDF_TOO_LARGE
-    if not file.filename.lower().endswith(".pdf") or not data.startswith(b"%PDF-"):
-        return None, "Upload a PDF file."
+    # A file was chosen, so an empty one is a bad file, not a missing one.
+    if not data or not file.filename.lower().endswith(".pdf") or not data.startswith(b"%PDF-"):
+        return None, NOT_A_PDF
     try:
         pages = ai.read_pdf_pages(data)
     except ai.UnreadablePdf:
-        return None, "Upload a PDF file."
+        return None, NOT_A_PDF
     if not pages:
-        return None, "Upload a PDF file."
+        return None, NOT_A_PDF
+    if not any(pages):
+        # Scanned pages: nothing to answer from, and trying again will not help.
+        return None, NO_READABLE_TEXT
     return pages, None
 
 
 def validate_question(raw):
-    question = (raw or "").strip()
+    # Browsers send each new line as \r\n; count it once, as the live counter does.
+    question = (raw or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if not question:
         return None, "Type a question first."
     if len(question) > MAX_QUESTION_LENGTH:

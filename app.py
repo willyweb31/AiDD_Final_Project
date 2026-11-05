@@ -24,10 +24,19 @@ app = Flask(__name__)
 app.config["DATABASE"] = str(BASE_DIR / ("mycarai-test.db" if ai.TESTING else "mycarai.db"))
 app.config["MAX_CONTENT_LENGTH"] = validators.MAX_PDF_BYTES
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Off by default because the demo runs over plain http on 127.0.0.1. Set
+# SESSION_COOKIE_SECURE=1 in .env if the app is ever served over https.
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE") == "1"
 
 app.secret_key = os.environ.get("FLASK_SECRET_KEY")
 if not app.secret_key:
     raise RuntimeError("Set FLASK_SECRET_KEY in your .env file.")
+if len(app.secret_key) < 32 and not ai.TESTING:
+    # A warning, not a refusal, so an existing .env keeps working.
+    app.logger.warning(
+        "FLASK_SECRET_KEY is short. Use a long random value: "
+        'python -c "import secrets; print(secrets.token_hex(32))"'
+    )
 
 UNAVAILABLE = "The assistant is unavailable right now. Please try again."
 MANUAL_FAILED = "The manual could not be processed. Try again."
@@ -41,6 +50,29 @@ def get_db():
     if "db" not in g:
         g.db = models.connect(app.config["DATABASE"])
     return g.db
+
+
+@app.before_request
+def refuse_cross_site_posts():
+    """Browsers label every request with where it came from. A form on another
+    site or another port on this machine is labelled "same-site" or "cross-site",
+    so a page we did not serve cannot make a signed-in driver's browser post here.
+    Requests with no label (tests, curl) and typed or bookmarked links pass."""
+    if request.method == "POST" and request.headers.get("Sec-Fetch-Site") not in (None, "same-origin", "none"):
+        abort(403)
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    # Everything is served from this site. data: images are the small inline icons in style.css.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; "
+        "base-uri 'self'; form-action 'self'"
+    )
+    return response
 
 
 @app.teardown_appcontext
@@ -120,9 +152,19 @@ def answer(question, vehicle):
 # ----------------------------------------------------------------- errors ---
 
 
+@app.errorhandler(400)
+def bad_request(_error):
+    return render_template("error.html", message="That request wasn't understood. Please go back and try again."), 400
+
+
 @app.errorhandler(403)
 def forbidden(_error):
     return render_template("error.html", message="You don't have access to this page."), 403
+
+
+@app.errorhandler(405)
+def method_not_allowed(_error):
+    return render_template("error.html", message="That page can't be opened this way."), 405
 
 
 @app.errorhandler(404)
@@ -135,7 +177,8 @@ def too_large(_error):
     # Flask refuses an oversized upload before the route runs.
     if g.get("user") is not None and g.user["role"] == "admin":
         return admin_page(upload_error=validators.PDF_TOO_LARGE), 413
-    return render_template("error.html", message=validators.PDF_TOO_LARGE), 413
+    # Only the PDF upload can be this large, and drivers cannot upload.
+    return render_template("error.html", message="That was too much to send at once. Please try something shorter."), 413
 
 
 @app.errorhandler(500)
@@ -155,7 +198,7 @@ def index():
 def signup():
     if g.user is not None:
         return redirect(home_for(g.user))
-    if request.method == "GET":
+    if request.method != "POST":
         return render_template("signup.html")
 
     # Any "role" field in the form is ignored: every signup is a driver.
@@ -177,7 +220,7 @@ def signup():
 def login():
     if g.user is not None:
         return redirect(home_for(g.user))
-    if request.method == "GET":
+    if request.method != "POST":
         return render_template("login.html")
 
     email = validators.clean_email(request.form.get("email"))
@@ -223,7 +266,7 @@ def vehicle():
 # ------------------------------------------------------------------- chat ---
 
 
-def chat_page(vehicle, conversation=None, messages=(), error=None, question="", status=200):
+def chat_page(vehicle, conversation=None, messages=(), error=None, question="", status=200, unavailable=False):
     page = render_template(
         "chat.html",
         vehicle=vehicle,
@@ -231,6 +274,7 @@ def chat_page(vehicle, conversation=None, messages=(), error=None, question="", 
         messages=messages,
         error=error,
         question=question,
+        unavailable=unavailable,  # the driver did nothing wrong, so the page shows a calm notice
     )
     return page, status
 
@@ -243,7 +287,7 @@ def chat():
     if vehicle is None:
         flash("Choose your vehicle first.")
         return redirect(url_for("vehicle"))
-    if request.method == "GET":
+    if request.method != "POST":
         return chat_page(vehicle)
 
     raw = request.form.get("question", "")
@@ -254,7 +298,7 @@ def chat():
         reply, chunk_ids = answer(question, vehicle)
     except ai.ProviderError as exc:
         app.logger.warning("Assistant unavailable: %s", exc)
-        return chat_page(vehicle, error=UNAVAILABLE, question=raw, status=503)
+        return chat_page(vehicle, error=UNAVAILABLE, question=raw, status=503, unavailable=True)
 
     conversation_id = models.create_conversation(
         conn, g.user["id"], vehicle["id"], question[:60], question, reply, chunk_ids
@@ -277,7 +321,7 @@ def conversations():
 @login_required
 def conversation(conversation_id):
     # Admins get the same 404 as a missing conversation, never "see everything".
-    if g.user["role"] != "driver":
+    if g.user["role"] != "driver" or not validators.valid_conversation_id(conversation_id):
         return conversation_not_found()
     conn = get_db()
     convo = models.get_conversation(conn, conversation_id, g.user["id"])
@@ -286,7 +330,7 @@ def conversation(conversation_id):
     # Answers come from the conversation's vehicle, not the driver's current one.
     convo_vehicle = {"id": convo["vehicle_id"], **{k: convo[k] for k in ("make", "model", "year", "trim")}}
 
-    error, raw, status = None, "", 200
+    error, raw, status, unavailable = None, "", 200, False
     if request.method == "POST":
         raw = request.form.get("question", "")
         question, error = validators.validate_question(raw)
@@ -296,20 +340,20 @@ def conversation(conversation_id):
                 reply, chunk_ids = answer(question, convo_vehicle)
             except ai.ProviderError as exc:
                 app.logger.warning("Assistant unavailable: %s", exc)
-                error, status = UNAVAILABLE, 503
+                error, status, unavailable = UNAVAILABLE, 503, True
             else:
                 if not models.add_follow_up(conn, conversation_id, g.user["id"], question, reply, chunk_ids):
                     return conversation_not_found()
                 return redirect(url_for("conversation", conversation_id=conversation_id))
 
     messages = models.get_messages(conn, conversation_id, g.user["id"])
-    return chat_page(convo_vehicle, convo, messages, error, raw, status)
+    return chat_page(convo_vehicle, convo, messages, error, raw, status, unavailable)
 
 
 @app.route("/conversations/<int:conversation_id>/delete", methods=["POST"])
 @login_required
 def delete_conversation(conversation_id):
-    if g.user["role"] != "driver":
+    if g.user["role"] != "driver" or not validators.valid_conversation_id(conversation_id):
         return conversation_not_found()
     if not models.delete_conversation(get_db(), conversation_id, g.user["id"]):
         return conversation_not_found()
@@ -335,7 +379,7 @@ def admin_page(vehicle_error=None, upload_error=None, form=None):
 @app.route("/admin/manuals", methods=["GET", "POST"])
 @admin_required
 def admin_manuals():
-    if request.method == "GET":
+    if request.method != "POST":
         return admin_page()
 
     action = request.form.get("action")

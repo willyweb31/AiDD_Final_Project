@@ -4,10 +4,16 @@
 {% block content %}
 <h1>Ask about your {{ vehicle|vehicle_name }}</h1>
 
+{% if not messages %}
+  <p class="lede">Ask in your own words. Answers come from your owner's manual, with the page number so you can check it.</p>
+{% endif %}
+
 {% if messages %}
   <ol class="thread">
     {% for m in messages %}
-      <li class="message {{ m.sender }}">
+      {# An assistant reply with no source page is the "I'm not sure" reply. #}
+      {% set unsure = m.sender == 'assistant' and not m.source_page %}
+      <li class="message {{ m.sender }}{% if unsure %} unsure{% endif %}">
         <span class="who">{{ 'You' if m.sender == 'driver' else 'MyCarAI' }}</span>
         <p class="content">{{ m.content }}</p>
         {% if m.sender == 'assistant' and m.source_page %}
@@ -20,7 +26,7 @@
 
 <form class="ask" method="post"
       action="{{ url_for('conversation', conversation_id=conversation.id) if conversation else url_for('chat') }}">
-  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<p class="error{% if unavailable %} calm{% endif %}" role="alert">{{ error }}</p>{% endif %}
   <label for="question" class="visually-hidden">Your question</label>
   <textarea id="question" name="question" rows="3" required
             placeholder="{{ 'Ask a follow-up question' if conversation else 'Ask anything about your car, in your own words' }}">{{ question }}</textarea>
@@ -29,6 +35,17 @@
     <button type="submit" id="send">Send</button>
   </div>
 </form>
+
+{% if not messages %}
+  <section class="examples" aria-labelledby="examples-title">
+    <h2 id="examples-title" class="examples-title">Things you can ask</h2>
+    <ul>
+      <li>How do I connect my phone with Bluetooth?</li>
+      <li>What should my tire pressure be?</li>
+      <li>How do I use cruise control?</li>
+    </ul>
+  </section>
+{% endif %}
 
 {% if conversation %}
   <form class="delete" method="post" action="{{ url_for('delete_conversation', conversation_id=conversation.id) }}" data-confirm="Delete this conversation?">
